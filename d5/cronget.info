@@ -1,0 +1,5 @@
+; $Id:
+name = Cronget
+description = "Retrieves data from a remote URL via the Drupal Cron API"
+package = Bentley
+version = VERSION
