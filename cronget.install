@@ -2,51 +2,157 @@
 // $Id:$
 
 /**
+ * Implementation of hook_schema()
+**/
+function cronget_schema() {
+  // cronget table
+  $schema['cronget'] = array(
+      'fields' => array(
+        'nid' => array(
+          'description' => t('The primary identifier for a node.'),
+          'type' => 'serial',
+          'unsigned' => TRUE,
+          'not null' => TRUE,
+        ),
+        'vid' => array(
+          'description' => t('The current {node_revisions}.vid version identifier.'),
+          'type' => 'int',
+          'unsigned' => TRUE,
+          'not null' => TRUE,
+          'default' => 0,
+        ),
+        'jid' => array(
+          'description' => t('The job id of a node..'),
+          'type' => 'int',
+          'unsigned' => TRUE,
+          'not null' => TRUE,
+          'default' => 0,
+        ),
+      ),
+      'primary key' => array('vid'),
+      'unique keys' => array(
+           'vid' => array('vid')),
+      'indexes' => array(
+           'nid' => array('nid')),
+  );
+  
+  // cronget data table
+  $schema['cronget_data'] = array(
+      'fields' => array(
+        'did' => array(
+          'description' => t('The primary identifier for a cronget data.'),
+          'type' => 'int',
+          'unsigned' => TRUE,
+          'not null' => TRUE,
+          'default' => 0,
+        ),
+        'jid' => array(
+          'description' => t('The job id of a node..'),
+          'type' => 'int',
+          'unsigned' => TRUE,
+          'not null' => TRUE,
+          'default' => 0, 
+        ),
+        'content' => array(
+          'description' => t('The payload of a cronget job.'),
+          'type' => 'text',
+          'not null' => TRUE,
+          'default' => '',
+        ),
+        'timestamp' => array(
+          'type' => 'int',
+          'unsigned' => TRUE,
+          'not null' => TRUE,
+          'default' => 0,
+          'description' => 'Timestamp of when data was inserted.',
+        ),
+      ),
+      'primary key' => array('did'),
+      'indexes' => array(
+           'did' => array('did')),
+  );
+  
+  // cronget jobs table
+  $schema['cronget_jobs'] = array(
+      'fields' => array(
+        'jid' => array(
+          'type' => 'serial',
+          'not null' => TRUE,
+          'description' => 'Primary Key: Unique job ID.',  
+        ),
+        'uid' => array(
+          'type' => 'int',
+          'unsigned' => TRUE,
+          'not null' => FALSE,
+          'default' => 0,
+          'description' => 'User {users}.uid that visited the page.',  
+        ),
+        'title' => array(
+          'type' => 'varchar',
+          'length' => 255,
+          'not null' => TRUE,
+          'default' => '',
+          'description' => 'Cronget Job Title.',  
+        ),
+        'url' => array(
+          'type' => 'varchar',
+          'length' => 255,
+          'description' => 'URL of cronget job.',  
+        ),
+        'type' => array(
+          'type' => 'varchar',
+          'length' => 255,
+          'description' => 'Cronget job type.',  
+        ),
+        'description' => array(
+          'type' => 'text',
+          'default' => '',
+          'description' => t('Cronget job description.'),
+        ),
+        'callback' => array(
+          'type' => 'text',
+          'default' => '',
+          'description' => t('Cronget job callback function.'),
+        ),
+        'checked' => array(
+          'type' => 'int',
+          'unsigned' => TRUE,
+          'not null' => TRUE,
+          'default' => 0,
+          'description' => '',
+        ),
+        'refresh' => array(
+          'type' => 'int',
+          'unsigned' => TRUE,
+          'not null' => TRUE,
+          'default' => 0,
+          'description' => '',
+        ),
+        'saveas' => array(
+          'type' => 'varchar',
+          'length' => 255,
+          'description' => '',
+        ),
+      ),
+      'primary key' => array('jid'),
+      'unique keys' => array(
+           'title' => array('title')),
+  );
+  return $schema;
+}
+
+/**
  * Implementation of hook_install().
  */
 function cronget_install() {
-  switch ($GLOBALS['db_type']) {
-    case 'mysql':
-    case 'mysqli':
-      db_query("CREATE TABLE {cronget_jobs} (
-        jid int NOT NULL auto_increment,
-        uid int NOT NULL default '0',
-        title varchar(255) NOT NULL default '',
-        url varchar(255) NOT NULL default '',
-        type varchar(25) default '',
-        description longtext NOT NULL,
-        callback longtext NULL,
-        checked int NOT NULL default '0',
-        refresh int NOT NULL default '0',
-        saveas varchar(25) default '',
-        PRIMARY KEY (jid),
-        UNIQUE KEY title (title)
-      ) /*!40100 DEFAULT CHARACTER SET UTF8 */ ");
-      db_query("CREATE TABLE {cronget_data} (
-        did int NOT NULL auto_increment,
-        jid int NOT NULL default '0',
-        content longtext NULL,
-        timestamp int NOT NULL default '0',
-        PRIMARY KEY(did),
-        INDEX did (did)
-      ) /*!40100 DEFAULT CHARACTER SET UTF8 */ ");
-      db_query("CREATE TABLE {cronget} (
-        vid int NOT NULL default '0',
-        nid int NOT NULL default '0',
-        jid int NOT NULL default '0',
-        PRIMARY KEY(vid),
-        INDEX nid (nid),
-        UNIQUE KEY vid (vid)
-      ) /*!40100 DEFAULT CHARACTER SET UTF8 */ ");
-    break;
-  }
+  // Create tables.
+  drupal_install_schema('cronget');
 }
 
 /**
  * Implementation of hook_uninstall().
  */
 function cronget_uninstall() {
-  db_query('DROP TABLE {cronget_jobs}');
-  db_query('DROP TABLE {cronget_data}');
-  db_query('DROP TABLE {cronget}');
+  // Remove tables.
+  drupal_uninstall_schema('statistics');
 }

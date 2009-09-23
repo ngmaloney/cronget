@@ -1,0 +1,24 @@
+<?php
+
+/**
+ * @file Unit tests for the cronget module
+**/
+class CrongetTest extends DrupalTestCase {
+    
+  function get_info() {
+    return array(
+      'name' => t('Cronget tests'),
+      'desc' => t('Tests the cronget module.'),
+      'group' => t('cronget tests')
+    );
+  }
+  
+  /**
+  * Tests hook_help() output
+  **/
+  function test_cronget_help() {
+    $section = 'admin/help#cronget';
+    $output = cronget_help($section);
+    $this->assertNotNull($output, 'Checking help for . %s');
+  }
+}

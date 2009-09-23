@@ -1,5 +1,5 @@
-; $Id:
-name = Cronget
+; $Id$
+name = Cronget Module
 description = "Retrieves data from a remote URL via the Drupal Cron API"
-package = Bentley
-version = VERSION
+core = 6.x
+

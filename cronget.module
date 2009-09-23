@@ -1,15 +1,12 @@
 <?php
-// $Id$
 
 /**
  * @file
  * Utility used to retrieve remote HTML,XML,RSS or JSON data.
  */
 
- /***************** Global Variable Declarations *****************/
+ // Global Variable Declarations //
  define('CRONGET_NODETYPE', 'cronget');
-
-/****************** MENU AND HELP FUNCTIONS **********************/
 
 /**
  * Implementation of hook_help().
@@ -21,7 +18,7 @@ function cronget_help($section) {
       $output = '<p>'. t('Cronget is a simple utility for retrieving data from a remote URL and storing it in a table. It is usefull for storing HTML,XML,JSON, etc.') .'</p>';
     break;
     case 'admin/content/cronget':
-      $output = '<p>'. t("Cronget is a helper utility that allows remote data to be retrieved and stored via the Drupal cron process. It is helper module and the data is primarly consumed by other modules.") .'</p>';
+      $output = '<p>'. t("Cronget is a helper utility that allows remote data to be retrieved and stored via the Drupal cron process. It's primary use would be to fetch remote data and store it as node (or block) content.") .'</p>';
     break;
     case 'admin/content/cronget/add/job':
       $output = '<p>'. t("Add a remote http URL to retrieve. Cronget will store the results as a text string.") .'</p>';
@@ -30,75 +27,68 @@ function cronget_help($section) {
   return $output;
 }
 
+/** 
+ * Implementation of hook_perm()
+**/
+function territory_bookmark_perm() {
+  return array(
+    'administer cronget',
+    'create cronget jobs',
+    'edit own cronget jobs',
+    'access cronget'
+  );
+}
+
 /**
  * Implementation of hook_menu().
  */
-function cronget_menu($may_cache) {
-  $items = array();
-  $perms = cronget_getperms();
-  $edit = $perms['edit'];
-  $view = $perms['view'];
-
-  /* Cacheable Menu Items */
-  if (!$may_cache) {
-    $items[] = array('path' => 'admin/content/cronget',
-      'title' => t('Cronget Jobs'),
-      'description' => t("Configure cronget, a remote data retrieval module."),
-      'callback' => 'cronget_admin_overview',
-      'access' => $edit);
-    $items[] = array('path' => 'admin/content/cronget/add/job',
-      'title' => t('Add Job'),
-      'callback' => 'drupal_get_form',
-      'callback arguments' => array('cronget_form_job'),
-      'access' => $edit,
-      'type' => MENU_LOCAL_TASK);
-    $items[] = array('path' => 'admin/content/cronget/list',
-      'title' => t('List'),
-      'type' => MENU_DEFAULT_LOCAL_TASK,
-      'weight' => -10);
-  }
-  /* End Cacheable Menu Items */
-
-  /* Dynamic Menu Items */
-  if (arg(2) == 'cronget' && is_numeric(arg(5))) {
-    $jid = arg(5); //Set local jid var
-    $job = cronget_get_job($jid); //Get job array via query
-    //Edit cronget job
-    $items[] = array('path' => 'admin/content/cronget/edit/job/'. $jid,
-      'title' => t("Edit Job"),
-      'callback' => 'drupal_get_form',
-      'callback arguments' => array('cronget_form_job', $job),
-      'access' => $edit,
-      'type' => MENU_CALLBACK
-    );
-    //Manually refresh cronget job
-    $items[] = array('path' => 'admin/content/cronget/refresh/job/'. $jid,
-      'title' => t("Refresh Job"),
-      'callback' => 'cronget_refresh_job',
-      'callback arguments' => array($job),
-      'access' => $edit,
-      'type' => MENU_CALLBACK
-    );
-  }
-  /* End Dynamic Menu Items */
+function cronget_menu() {
+  $items = array();  
+  // Menu entry for adding cronget jobs
+  $items['admin/content/cronget'] = array(
+    'title' => t('Cronget Jobs'),
+    'description' => t("Configure cronget, a remote data retrieval module."),
+    'page callback' => 'cronget_admin_overview',
+    'access arguments' => array('administer cronget'),
+    'file' => 'cronget.admin.inc',
+  );
+  $items['admin/content/cronget/list'] = array(
+    'title' => t("List"),
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+    'description' => t("Create a listing of cronget jobs."),
+    'weight' => -10,
+  );
+  $items['admin/content/cronget/add'] = array(
+    'title' => t("Add job"),
+    'description' => t("Create a cronget job."),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('cronget_form_job'),
+    'access arguments' => array('create cronget jobs'),
+    'file' => 'cronget.admin.inc',
+    'type' => MENU_LOCAL_TASK,
+  );
   return $items;
 }
 
-/****************** NODE AND PERMISSION FUNCTIONS **********************/
-/* Cronget Node Structure
+/**
+ * Implementation of hook_hook_info()
 
-  The cronget node type interfaces the cronget_data and cronget_job
-  tables. It was designed this way because creating cronget nodes is
-  optional, but the job_data is always stored. Generally speaking
-  end users will NEVER create or update cronget nodes
-
- $node->vid //Version ID
- $node->nid //Node ID
- $node->jid //Job ID
- $node->title //Node Title
- $node->content //The content of the request
- $node->cronget_type //Job Type
-*/
+function cronget_hook_info() {
+  $triggers = array(
+    'cronget' => array(
+      'cronget' => array(
+        'cronget_preprocess' => array(
+          'runs when' => t('Before cronget data is saved.')
+        ),
+        'cronget_executed' => array(
+          'runs when' => t('Cronget is executed.')
+        )
+      )
+    )
+  );
+  return $triggers;
+}
+**/
 
 /**
  * Implementation of hook_perm()
@@ -112,544 +102,20 @@ function cronget_perm() {
 }
 
 /**
- * Cronget Permissions
- * @todo refactor. I used this instead of hardcoding permissions in other functions.
- **/
-function cronget_getperms() {
-  return array(
-    'edit' => user_access('administer cronget'),
-    'view' => user_access('access cronget'),
-    'create' => user_access('create cronget'),
-    'update' => user_access('edit own cronget')
-  );
-}
-
-/**
  * Implementation of hook_access
  */
 function cronget_access($op, $node) {
   global $user;
-  $perms = cronget_getperms();
-
-  //Set Node Creation Access
-  if ($op == 'create') {
-    return $perms['create'];
-  }
-
-  //Set Node Update and Delete access
-  if ($op == 'update' || $op == 'delete') {
-    return ($perms['update'] && ($user->uid == $node->uid));
-  }
+  //TODO: Setup
 }
 
-/**
- * Implementation of hook_node_info()
- **/
-function cronget_node_info() {
-  return array(
-    'cronget' => array(
-      'name' => t('Cronget'),
-      'module' => 'cronget',
-      'description' => t('Nodes created by the cronget module'),
-      'has_title' => TRUE,
-      'title_label' => t('Title'), //Uses cronget job title
-      'has_body' => FALSE //We store body in {cronget_data}
-    )
-  );
-}
-
-/**
- * Implementation of hook_insert()
- **/
-function cronget_insert($node) {
-  $data = cronget_node_to_array($node); //Need this to save to cronget_data
-  db_query(
-    "INSERT INTO {cronget} (vid,nid,jid) VALUES (%d,%d,%d)",
-    $node->vid,
-    $node->nid,
-    $node->jid
-  );
-  //Save to {cronget_data} table
-  cronget_save_data($data);
-}
-
-/**
- * Implementation of hook_update()
- *
- **/
-function cronget_update($node) {
-  $data = cronget_node_to_array($node); //Need this to save to cronget_data
-  if ($node->revision) {
-    cronget_insert($node);
-  }
-  else {
-    db_query(
-      "UPDATE {cronget} SET nid = %d, jid = %d WHERE vid = %d",
-      $node->nid,
-      $node->jid,
-      $node->vid
-    );
-  }
-  cronget_save_data($data);
-}
-
-/**
- * Implemenation of hook_delete()
- **/
-function cronget_delete($node) {
-  $data = cronget_node_to_array($node); //Need this to save to cronget_data
-  db_query(
-    "DELETE FROM {cronget} WHERE nid = %d",
-    $node->nid
-  );
-}
-
-/**
- * Implementation of hook_load()
- **/
-function cronget_load($node) {
-  $result = db_query(
-    "SELECT n.vid, n.jid, d.content, j.type AS cronget_type FROM {cronget} n
-     INNER JOIN {cronget_data} d ON n.jid = d.jid
-     INNER JOIN {cronget_jobs} j ON n.jid = j.jid
-     WHERE n.vid = %d",
-     $node->vid
-  );
-  return db_fetch_object($result);
-}
-
-/****************** BLOCK FUNCTIONS**********************/
-function cronget_block($op = 'list', $delta = 0, $edit = array()) {
-  if (user_access('access cronget')) {
-    switch ($op) {
-      //List Blocks
-      case 'list':
-        //Get list of all jobs that generate blocks
-        $result = db_query("select jid,title from {cronget_jobs} where saveas like '%s'", '%block%');
-        while ($job = db_fetch_object($result)) {
-          $block[$job->jid]['info'] = t($job->title);
-        }
-      break;
-      //Config Blocks
-      /*
-      case 'configure'
-        //TODO cronget_maxitems config
-      break;
-      */
-      //View Blocks
-      case 'view':
-        //Retrieve block by delta
-        $block = cronget_get_block_view($delta);
-      break;
-    }
-    return $block;
-  }
-}
-
-/**
- * Function to retrieve a block content by delta
- * @param $delta
- * A string containing the block to retrieves delta value
-**/
-function cronget_get_block_view($delta) {
-  $title = '';
-  $block = array();
-  $result = db_query('
-    SELECT d.jid, j.title, d.content
-    FROM {cronget_jobs} j
-    INNER JOIN {cronget_data} d ON j.jid = d.jid
-    WHERE j.jid = %d',
-    $delta);
-  $items = array();
-  while ($data = db_fetch_object($result)) {
-    $items[] = $data->content;
-    $title = $data->title;
-  }
-  $block['subject'] = t($title);
-  $block['content'] = implode(" ", $items);
-  return $block;
-}
-
-/****************** VIEW AND FORM FUNCTIONS**********************/
-
-/**
- * Function to display cronget admin overview
- */
-function cronget_admin_overview() {
-  return cronget_view();
-}
-
-/**
-* Function to display current cronget jobs
-*/
-function cronget_view() {
-  $result = db_query('SELECT * FROM {cronget_jobs} j ORDER BY Title ASC');
-  $output = '<h3>'. t('Cronget Job Listings') .'</h3>';
-
-  $header = array(t('Title'), t('URL'), t('Type'), array('data' => t('Operations'), 'colspan' => '2'));
-  $rows = array();
-  while ($job = db_fetch_object($result)) {
-    $rows[] = array(t($job->title), t($job->url), t($job->type), l(t('Edit'), "admin/content/cronget/edit/job/$job->jid"), l(t('Refresh'), "admin/content/cronget/refresh/job/$job->jid"));
-  }
-  $output .= theme('table', $header, $rows);
-  return $output;
-}
-
-/**
- * Function to generate a form to add/edit cronget jobs.
- * @param $edit
- *  An array containing the form values
- */
-function cronget_form_job($edit = array()) {
-  global $user;
-  //Store seconds as a nice array
-  $period = drupal_map_assoc(array(3600, 10800, 21600, 32400, 43200, 86400, 172800, 259200, 604800, 1209600, 2419200, 4838400, 9676800), 'format_interval');
-  //Saveas Options
-  $saveas = array('block' => t('Block'), 'node' => t('Node'));
-  //Form Type Options
-  $form_types = array('standard' => t('Standard'), 'streaming' => t('Streaming'));
-  $form['title'] = array('#type' => 'textfield',
-    '#title' => t('Title'),
-    '#default_value' => $edit['title'],
-    '#maxlength' => 255,
-    '#description' => t('The job title.'),
-    '#required' => TRUE,
-  );
-  $form['url'] = array('#type' => 'textfield',
-    '#title' => t('URL'),
-    '#default_value' => $edit['url'],
-    '#maxlength' => 255,
-    '#description' => t('The fully-qualified URL of the data you wish to retrieve.'),
-    '#required' => TRUE,
-  );
-  $form['type'] = array(
-    '#type' => 'select',
-    '#title' => t('Job Type'),
-    '#options' => $form_types,
-    '#description' => t('Standard jobs update the data set on each execution. Streaming jobs create a new data row.'),
-    '#default_value' => $edit['type']
-  );
-  $form['refresh'] = array('#type' => 'select',
-    '#title' => t('Update interval'),
-    '#default_value' => $edit['refresh'],
-    '#options' => $period,
-    '#description' => t('The refresh interval indicating how often you want to update this job. Requires crontab.'),
-  );
-  $form['saveas'] = array('#type' => 'checkboxes',
-    '#title' => t('Save As'),
-    '#default_value' => explode(",", $edit['saveas']), //This is hacky but it works
-    '#options' => $saveas,
-    '#description' => t('Will optionally save each job as a node or a block')
-  );
-  $form['description'] = array('#type' => 'textarea',
-    '#title' => t('Description'),
-    '#default_value' => $edit['description'],
-  );
-  $form['callback'] = array('#type' => 'textarea',
-    '#title' => t('Callback'),
-    '#default_value' => $edit['callback'],
-    '#description' => t("PHP code to execute after job has been run. Include the <?php ?> tags. There is an array named \$data that contains the job data. \$data['jid'] - Job ID, \$data['content'] - Remote Data"),
-  );
-  $form['submit'] = array('#type' => 'submit', '#value' => t('Submit'));
-  $form['uid'] = array('#type' => 'hidden', '#value' => $user->uid);
-  if ($edit['jid']) {
-    $form['delete'] = array('#type' => 'submit', '#value' => t('Delete'));
-    $form['jid'] = array('#type' => 'hidden', '#value' => $edit['jid']);
-  }
-  return $form;
-}
-
-/**
- * Function to validate cronget_form_job form submissions.
- * @param $form_id
- * A string containing the form_id to validate
- * @param $form_values
- * An array of form values
- */
-function cronget_form_job_validate($form_id, $form_values) {
-  if ($form_values['op'] == t('Submit')) {
-    // Check for duplicate titles or urls
-    if (isset($form_values['jid'])) {
-      $results = db_query("SELECT title, url FROM {cronget_jobs} WHERE (title = '%s' or url = '%s') AND jid <> %d",$form_values['title'],$form_values['url'],$form_values['jid']);
-    }
-    else {
-      $results = db_query("SELECT title,url FROM {cronget_jobs} WHERE (title = '%s' or url = '%s')",$form_values['title'],$form_values['url']);
-    }
-    while ($job = db_fetch_object($result)) {
-      if (strcasecmp($job->title, $form_values['title']) == 0) {
-        form_set_error('title', t('A job named %title already exists. Please enter a unique title.', array('%title' => $form_values['title'])));
-      }
-      if (strcasecmp($job->url, $form_values['url']) == 0) {
-        form_set_error('url', t('A job with the url %url already exists. Please enter a unique url.', array('%url' => $form_values['url'])));
-      }
-    }
-    //Validate URL
-    if (!valid_url($form_values['url'],TRUE)) {
-      form_set_error('url',t('The value for the form url appears invalid. Please enter a valid url.'));
-    }
-  }
-}
-
-/**
- * Function to handle cronget_form_job form submissions.
- * @param $form_id
- * A string containing the form_id to validate
- * @param $form_values
- * An array of form values
- * @todo Add delete confirmation dialog.
- */
-function cronget_form_job_submit($form_id, $form_values) {
-  if ($form_values['op'] == t('Delete')) {
-    //Return Delete Confirmation
-    cronget_delete_job($form_values);
-    drupal_set_message(t('Job Deleted.'));
-  }
-  else {
-    cronget_save_job($form_values);
-    drupal_set_message(t('Job Saved.'));
-  }
-  menu_rebuild();
-  return 'admin/content/cronget';
-}
-
-/****************** DATABASE FUNCTIONS **********************/
-
-/**
- * Function for adding/saving a cronget job
- *
- * @param $edit
- * An array representing the cron_get job to save
- **/
-function cronget_save_job($edit) {
-  //Perform SQL Operations
-  if ($edit['jid']) {
-   db_query("UPDATE {cronget_jobs} SET title = '%s', url = '%s', uid = '%d', type = '%s', description = '%s', refresh = %d, callback = '%s', saveas = '%s' WHERE jid = %d",$edit['title'],$edit['url'],$edit['uid'],$edit['type'],$edit['description'],$edit['refresh'],$edit['callback'],implode(',',array_values($edit['saveas'])),$edit['jid']);
-   watchdog('cronget', t('job %jid updated.', array('%jid' => $edit['jid'])));
-  }
-  else {
-    db_query("INSERT INTO {cronget_jobs} (title,url,uid,type,description,refresh,callback,saveas) VALUES('%s','%s',%d,'%s','%s',%d,'%s','%s')",$edit['title'],$edit['url'],$edit['uid'],$edit['type'],$edit['description'],$edit['refresh'],$edit['callback'],implode(',',array_values($edit['saveas'])));
-    watchdog('cronget', t('job %jid inserted.', array('%jid' => $edit['jid'])));
-  }
-}
-
-/**
- * Function for delete a cronget job
- *
- * @param  $delete
- * An array representing the cron_get job to delete
- **/
-function cronget_delete_job($delete) {
-  //Delete all data
-  db_query("DELETE FROM {cronget_data} WHERE jid = %d",$delete['jid']);
-  //Delete job
-  db_query("DELETE FROM {cronget_jobs} WHERE jid = %d",$delete['jid']);
-  watchdog('cronget', t('job %jid deleted.',array('%jid' => $delete['jid'])));
-}
-
-
-
-/**
- * Function for saving a cronget data row
- * @param $data
- * An array representing the cron_get job to save.
- *
- *
- **/
-function cronget_save_data($data) {
-  $type = $data['type'];
-  //Set a default timestamp if needed
-  if (!isset($data['timestamp'])) {
-    $data['timestamp'] = time();
-  }
-  //See if there is a row in database, ifso update
-  $result = db_query("SELECT did FROM {cronget_data} WHERE jid = %d",$data['jid']);
-  if (db_num_rows($result) > 0 and $type != 'streaming') {
-    db_query("UPDATE {cronget_data} SET content = '%s',timestamp = %d WHERE jid = %d",$data['content'],$data['timestamp'],$data['jid']);
-    //watchdog('cronget', t('data of job: %jid type: %type updated',array('%jid' => $data['jid'], '%type' => $data['type'])));
-  }
-  else {
-    db_query("INSERT INTO {cronget_data} (jid,content,timestamp) VALUES(%d,'%s',%d)",$data['jid'],$data['content'],$data['timestamp']);
-    //watchdog('cronget', t('data of job: %jid type: %type inserted',array('%jid' => $data['jid'], '%type' => $data['type'])));
-  }
-}
-
-/**
- * Retrieves cronget job based on jid
- *
- * @param $jid -
- * An int representing job to retrieve
- * @return array of cron_get job
- **/
-function cronget_get_job($jid) {
-  return db_fetch_array(db_query('SELECT * FROM {cronget_jobs} WHERE jid = %d', $jid));
-}
-
-/**
- * Creates a cronget node from an array
- * @param $data
- * An array of data containing the following elements:
- *
- * $data['uid'] - cron_get node uid
- * $data['title'] - cron_get node title
- * $data['content'] - cron_get node content
- * $data['type'] - cron_get node type
- * $data['jid'] - cron_get job id
- * @return a node object
-**/
-function cronget_createnode($data) {
-  global $user;
-  $node = new stdClass();
-  $node->type = CRONGET_NODETYPE;
-  $node->language = '';
-  $node->uid = $user->uid;
-  $node->status = 1;
-  $node->created = time();
-  $node->title = $data['title'];
-  $node->name = $user->name;
-  //Custom Node Attributess
-  $node->content = $data['content'];
-  $node->cronget_type = $data['type'];
-  $node->jid = $data['jid'];
-  return $node;
-}
-
-
-/**
- * Function to get a cronget node by $jid
- * @param $jid
- * An int containing the cronget $jid (job id)
-**/
-function cronget_get_node_by_jid($jid) {
-  $result = db_fetch_array(db_query("SELECT nid FROM {cronget} WHERE jid = %d",$jid));
-  if (isset($result['nid'])) {
-    return node_load($result['nid']);
-  }
-  else {
-    return FALSE;
-  }
-}
-
-/**
- * Handles node creation logic
- * @param $data
- * a cronget data array
- **/
-function cronget_nodehandler($data) {
-  //Search for preexisting nodes
-  $node = cronget_get_node_by_jid($data['jid']);
-  //If no nodes are found create a new node obj.
-  if (!$node) {
-   $node = cronget_createnode($data);
-  }
-  //Update node fields on existing objs
-  else {
-    $node->content = $data['content'];
-    $node->cronget_type = $data['type'];
-    $node->jid = $data['jid'];
-    $node->title = $data['title'];
-  }
- node_save($node);
- watchdog('cronget',t('Node saved: %node',array('%node' => serialize($node))));
-}
-
-/****************** UTITLITY FUNCTIONS **********************/
-
-/**
- * Implementation of hook_cron().
- *
- * Retrieves cronget jobs based on interval.
- */
-function cronget_cron() {
-  $result = db_query('SELECT * FROM {cronget_jobs} WHERE checked + refresh < %d', time());
-  while ($job = db_fetch_array($result)) {
-    cronget_refresh($job);
-  }
-}
-
-/**
- * Implementation of hook_cron().
- *
- * Retrieves cronget jobs based on interval.
- *
- * @param $job -
- * An array representing the job to refresh
- */
-function cronget_refresh($job) {
-    $result = drupal_http_request($job['url']);
-    $data = array();
-    $data['jid'] = $job['jid'];
-    $data['content'] = trim($result->data);
-    $data['timestamp'] = time();
-    $data['type'] = $job['type'];
-    $data['uid'] = $job['uid'];
-    $data['title'] = $job['title'];
-    $saveas = explode(',',$job['saveas']);
-    // Process HTTP response code.
-    switch ($result->code) {
-      case 200:
-      case 302:
-      case 307:
-          //Handle Node Creation
-          if (in_array("node",$saveas)) {
-            cronget_nodehandler($data);
-          }
-          //If Node creation isn't needed just save it in cronget_data table
-          else {
-            cronget_save_data($data);
-          }
-          //Update checked value of job
-          db_query("UPDATE {cronget_jobs} SET checked = %d WHERE jid = %d",time(),$data['jid']);
-      break;
-      //Log as error if correct HTTP code not received
-      default:
-        watchdog('cronget','Received a http code of '.$result->code.' for cronget job '.$data['jid']);
-      break;
-    }
-    // Process Cronjob Callback
-    // We use eval here (rather than drupal_eval) because the user needs access to local variables.
-    eval('?>'.$job['callback']);
-}
-
-/**
- * Function that refreshes a drupal cronjob and redirects to list page
- *
- * @param $job
- * An array representing the job to refresh
-**/
-function cronget_refresh_job($job) {
-  cronget_refresh($job);
-  watchdog('cronget','cronget_refresh_job for job '.$job['jid'].' executed.');
-  drupal_set_message(t('Cronget job '.$job['jid'].' was refreshed.'));
-  drupal_goto('admin/content/cronget/list');
-}
-
-/**
- * Funtion that converts a node object to a cronget_job array
- * @param $node
- * A node boject to convert
- **/
-function cronget_node_to_array($node) {
-  return array(
-    'jid' => $node->jid,
-    'content' => $node->content,
-    'timestamp' => $node->date,
-    'type' => $node->cronget_type
-  );
-}
-
-/**
- * Helper function that change HTML links/images to absolute
- * @param string $html - HTML to filter
- * @param string $base - Base URL to rewrite to
- */
-function cronget_rewrite_links($html,$base) {
-  // generate server-only replacement for root-relative URLs
-  $server = preg_replace('@^([^\:]*)://([^/*]*)(/|$).*@', '\1://\2/', $base);
-
-  // replace root-relative URLs
-  $html = preg_replace('@\<([^>]*) (href|src)="/([^"]*)"@i', '<\1 \2="'.$server.'\3"', $html);
-
-  // replace base-relative URLs (kludgy, but I couldn't get ! to work)
-  $html = preg_replace('@\<([^>]*) (href|src)="(([^\:"])*|([^"]*:[^/"].*))"@i', '<\1 \2="'.$base.'\3"', $html);
-  return $html;
-}
+return array(
+  'cronget' => array(
+    'name' => t('Cronget'),
+    'module' => 'cronget',
+    'description' => t('Nodes created by the cronget module'),
+    'has_title' => TRUE,
+    'title_label' => t('Title'), //Uses cronget job title
+    'has_body' => FALSE //We store body in {cronget_data}
+  )
+);
