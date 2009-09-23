@@ -27,18 +27,6 @@ function cronget_help($section) {
   return $output;
 }
 
-/** 
- * Implementation of hook_perm()
-**/
-function territory_bookmark_perm() {
-  return array(
-    'administer cronget',
-    'create cronget jobs',
-    'edit own cronget jobs',
-    'access cronget'
-  );
-}
-
 /**
  * Implementation of hook_menu().
  */
@@ -62,33 +50,23 @@ function cronget_menu() {
     'title' => t("Add job"),
     'description' => t("Create a cronget job."),
     'page callback' => 'drupal_get_form',
-    'page arguments' => array('cronget_form_job'),
+    'page arguments' => array('cronget_job_admin', 3),
     'access arguments' => array('create cronget jobs'),
     'file' => 'cronget.admin.inc',
     'type' => MENU_LOCAL_TASK,
   );
+  
+  $items['admin/content/cronget/edit/%'] = array(
+    'title' => 'Edit contact category',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('cronget_job_admin', 3, 4),
+    'access arguments' => array('edit own cronget jobs'),
+    'file' => 'cronget.admin.inc',
+    'type' => MENU_CALLBACK,
+  );
+  
   return $items;
 }
-
-/**
- * Implementation of hook_hook_info()
-
-function cronget_hook_info() {
-  $triggers = array(
-    'cronget' => array(
-      'cronget' => array(
-        'cronget_preprocess' => array(
-          'runs when' => t('Before cronget data is saved.')
-        ),
-        'cronget_executed' => array(
-          'runs when' => t('Cronget is executed.')
-        )
-      )
-    )
-  );
-  return $triggers;
-}
-**/
 
 /**
  * Implementation of hook_perm()
@@ -109,13 +87,56 @@ function cronget_access($op, $node) {
   //TODO: Setup
 }
 
-return array(
-  'cronget' => array(
-    'name' => t('Cronget'),
-    'module' => 'cronget',
-    'description' => t('Nodes created by the cronget module'),
-    'has_title' => TRUE,
-    'title_label' => t('Title'), //Uses cronget job title
-    'has_body' => FALSE //We store body in {cronget_data}
-  )
-);
+/** Database Functions **/
+/**
+ * Function for adding/saving a cronget job
+ *
+ * @param $job
+ * An array representing the cron_get job to save
+ **/
+function cronget_save_job($job) {
+  //Perform SQL Operations
+  if ($job['jid']) {
+   db_query("UPDATE {cronget_jobs} SET title = '%s', url = '%s', uid = '%d', type = '%s', description = '%s', refresh = %d, callback = '%s', saveas = '%s' WHERE jid = %d",$job['title'],$job['url'],$job['uid'],$job['type'],$job['description'],$job['refresh'],$job['callback'],implode(',',array_values($job['saveas'])),$job['jid']);
+   watchdog('cronget', t('job %jid updated.', array('%jid' => $job['jid'])));
+  }
+  else {
+    db_query("INSERT INTO {cronget_jobs} (title,url,uid,type,description,refresh,callback,saveas) VALUES('%s','%s',%d,'%s','%s',%d,'%s','%s')",$job['title'],$job['url'],$job['uid'],$job['type'],$job['description'],$job['refresh'],$job['callback'],implode(',',array_values($job['saveas'])));
+    watchdog('cronget', t('job %jid inserted.', array('%jid' => $job['jid'])));
+  }
+}
+
+/**
+ * Function for deleting a cronget job
+ *
+ * @param  $delete
+ * An array representing the cron_get job to delete
+ **/
+function cronget_delete_job($delete) {
+  //Delete all data
+  db_query("DELETE FROM {cronget_data} WHERE jid = %d",$delete['jid']);
+  //Delete job
+  db_query("DELETE FROM {cronget_jobs} WHERE jid = %d",$delete['jid']);
+  watchdog('cronget', t('job %jid deleted.',array('%jid' => $delete['jid'])));
+}
+
+/**
+ * Load the data for a single cronget job
+ */
+function cronget_load($jid) {
+  $job = db_fetch_array(db_query("SELECT * FROM {cronget_jobs} WHERE jid = %d", $jid));
+  return empty($job) ? FALSE : $job;
+}
+
+/**
+ * Function to get all cronget jobs
+ * @return array $jobs An array of cronget jobs
+**/
+function cronget_get_all_jobs() {
+  $jobs = array();
+  $results = db_query('SELECT * FROM {cronget_jobs} j ORDER BY Title ASC');
+  while ($job = db_fetch_array($results)) {
+    $jobs[] = $job;
+  }
+  return $jobs;
+}

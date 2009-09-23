@@ -9,13 +9,47 @@
 **/
 function cronget_admin_overview() {
   $output = t("This is the cronget admin overview page.");
+  $jobs = cronget_get_all_jobs();
+  $rows = array();
+  foreach($jobs as $job) {
+    $rows[] = array(
+      $job['title'], 
+      $job['url'], 
+      $job['type'], 
+      l(t('Edit'), "admin/content/cronget/edit/".$job['jid']),
+    );
+  }
+  $header = array(
+    t('Title'), 
+    t('URL'), 
+    t('Job Type'),
+    t('Operations'),
+  );
+  $output .= theme('table', $header, $rows);
   return $output;
 }
 
 /**
  * Function for creating the cronget job administration form
 **/
-function cronget_form_job(&$form_state, $edit = array()) {
+function cronget_job_admin(&$form_state, $op, $edit = NULL) {
+  global $user;
+  if (empty($edit) || $op == 'add') {
+    $edit = array(
+      'title' => '',
+      'url' => '',
+      'refresh' => 0,
+      'saveas' => '',
+      'type' => '',
+      'description' => '',
+      'callback' => '',
+      'jid' => NULL,
+    );
+  }
+  else {
+    $edit = cronget_load($edit);
+  }
+  //var_dump($edit);
   $period = drupal_map_assoc(array(3600, 10800, 21600, 32400, 43200, 86400, 172800, 259200, 604800, 1209600, 2419200, 4838400, 9676800), 'format_interval');
   $form_types = array('static' => t('Static'), 'streaming' => t('Streaming'));
   $saveas = array('block' => t('Block'), 'node' => t('Node'));
@@ -76,4 +110,65 @@ function cronget_form_job(&$form_state, $edit = array()) {
     $form['jid'] = array('#type' => 'hidden', '#value' => $edit['jid']);
   }
   return $form;
+}
+
+/**
+ * Implementation of hook_validate()
+**/
+function cronget_job_admin_validate($form, &$form_state) {
+  //Validate Title
+  if ($form_state['values']['title'] == '') {
+    form_set_error('title', t('A title is required.'));
+  }
+  // Check for duplicate titles
+  if (!isset($form_state['values']['jid'])) {
+    $results = db_query("SELECT title FROM {cronget_jobs} WHERE title = '%s'",$form_state['values']['title']);
+    while ($job = db_fetch_object($results)) {
+      if (strcasecmp($job->title, $form_state['values']['title']) == 0) {
+        form_set_error('title', t('A job named %title already exists. Please enter a unique title.', array('%title' => $form_state['values']['title'])));
+      }
+    }
+  }
+  //Validate url
+  if ($form_state['values']['url'] == '') {
+    form_set_error('url', t('A url is required.'));
+  }
+  if (!valid_url($form_state['values']['url'],TRUE)) {
+    form_set_error('url', t('A valid url is required.'));
+  } 
+}
+
+/**
+ * Implementation of hook_submit()
+**/
+function cronget_job_admin_submit($form, &$form_state) {
+  $job = array(
+    'title' => $form_state['values']['title'],
+    'url' => $form_state['values']['url'],
+    'refresh' => $form_state['values']['refresh'],
+    'type' => $form_state['values']['type'],
+    'description' => $form_state['values']['description'],
+    'callback' => $form_state['values']['callback'],
+    'saveas' => $form_state['values']['saveas'],
+    'uid' => $form_state['values']['uid'],
+    'jid' => FALSE,
+  );
+  if (isset($form_state['values']['jid'])) {
+    $job['jid'] = $form_state['values']['jid'];
+  }
+  if ($form_state['values']['op'] == t('Delete')) {
+    //Return Delete Confirmation
+    cronget_delete_job($job);
+    drupal_set_message(t('Cronget Job Deleted.'));
+  }
+  else {
+    cronget_save_job($job);
+    drupal_set_message(t('Job Saved.'));
+  }
+  $form_state['redirect'] = 'admin/content/cronget/list';
+  /* DEBUG
+  var_dump($form_state['values']);
+  exit();
+  */
+  return;
 }
