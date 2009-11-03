@@ -1,8 +1,8 @@
 Description:
 ------------
 This module retrieves remote data via drupal_http_request and saves it. It is
-executed via the cron hook. The data is saved in a local table and can also
-be saved as a node or a block. There is also callback functionality
+executed via the cron hook. The data is saved in a local table and also
+saved as a node. There is also callback functionality
 so the remote data can be manipulated after retrieval.
 
 It was developed by (and for) Bentley College to keep components of their drupal

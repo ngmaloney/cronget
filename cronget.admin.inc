@@ -8,7 +8,36 @@
  * Function for displaying the cronget administration page
 **/
 function cronget_admin_overview() {
-  $output = t("This is the cronget admin overview page.");
+  $output = cronget_admin_list();
+  return $output;
+}
+
+/**
+ * Function for getting list of cronget jobs
+ * TODO: Add get by user_id arg
+**/
+function cronget_admin_list() {
+  global $user;
+  $jobs = cronget_get_jobs($user);
+  $output = '<h3>'. t('Cronget Job Listings') .'</h3>';
+  $rows = array();
+  $header = array(
+    t('Title'), 
+    t('URL'), 
+    t('Type'), 
+    array('data' => t('Operations'), 'colspan' => '3')
+  );
+  foreach($jobs as $job) {
+    $rows[] = array(
+      t($job->title), 
+      t($job->url), 
+      t($job->type), 
+      l(t('Edit'), "admin/content/cronget/edit/$job->jid"), 
+      l(t('Delete'), "admin/content/cronget/delete/$job->jid"), 
+      l(t('Refresh'), "admin/content/cronget/refresh/$job->jid")
+    );
+  }
+  $output .= theme('table', $header, $rows);
   return $output;
 }
 
@@ -16,9 +45,9 @@ function cronget_admin_overview() {
  * Function for creating the cronget job administration form
 **/
 function cronget_form_job(&$form_state, $edit = array()) {
+  global $user;
   $period = drupal_map_assoc(array(3600, 10800, 21600, 32400, 43200, 86400, 172800, 259200, 604800, 1209600, 2419200, 4838400, 9676800), 'format_interval');
   $form_types = array('static' => t('Static'), 'streaming' => t('Streaming'));
-  $saveas = array('block' => t('Block'), 'node' => t('Node'));
   $form['title'] = array('#type' => 'textfield',
     '#title' => t('Title'),
     '#default_value' => $edit['title'],
@@ -38,12 +67,6 @@ function cronget_form_job(&$form_state, $edit = array()) {
     '#default_value' => $edit['refresh'],
     '#options' => $period,
     '#description' => t('The refresh interval indicating how often you want to update this job. Requires crontab.'),
-  );
-  $form['saveas'] = array('#type' => 'checkboxes',
-    '#title' => t('Save As'),
-    '#default_value' => explode(",", $edit['saveas']), //This is hacky but it works
-    '#options' => $saveas,
-    '#description' => t('Will optionally save each job as a node or a block. If saved as a block, it will use the same title as the job title.')
   );
   $form['type'] = array(
     '#type' => 'select',
@@ -71,9 +94,49 @@ function cronget_form_job(&$form_state, $edit = array()) {
   );
   $form['submit'] = array('#type' => 'submit', '#value' => t('Submit'));
   $form['uid'] = array('#type' => 'hidden', '#value' => $user->uid);
-  if ($edit['jid']) {
-    $form['delete'] = array('#type' => 'submit', '#value' => t('Delete'));
-    $form['jid'] = array('#type' => 'hidden', '#value' => $edit['jid']);
-  }
+  $form['jid'] = array('#type' => 'value',
+    '#value' => $edit['jid'],
+  );
   return $form;
+}
+
+/**
+ * Implementation of hook_validate()
+**/
+function cronget_form_job_validate($form, &$form_state) {
+  if(!valid_url($form_state['values']['url'],TRUE)) {
+    form_set_error('url', 'URL appears invalid.');
+  }
+}
+
+/**
+ * Implementation of hook_submit()
+**/
+function cronget_form_job_submit($form, &$form_state) {
+  cronget_save_job($form_state);  
+  drupal_set_message(t('Your job has been saved.'));
+  $form_state['redirect'] = 'admin/content/cronget';
+}
+
+/**
+ * Form Delete Function
+**/
+function cronget_form_delete(&$form_state, $edit = array()) {
+  $form = array();
+  $form['cronget'] = array(
+     '#type' => 'value',
+     '#value' => $edit,
+   );
+  return confirm_form($form, t('Are you sure you want to delete job %edit?', array('%edit' => $edit['title'])), 'admin/content/cronget', t('This action cannot be undone.'), t('Delete'), t('Cancel'));
+}
+
+/**
+ * Form Delete Action
+**/
+function cronget_form_delete_submit($form, &$form_state) {
+  $jid = $form_state['values']['cronget']['jid'];
+  db_query("DELETE FROM {cronget_jobs} WHERE jid = %d", $jid);
+  drupal_set_message(t("Cronget Job deleted"));
+  watchdog('cronget', 'Cronget job '. $jid . ' deleted.');
+  $form_state['redirect'] = 'admin/content/cronget';
 }

@@ -18,7 +18,7 @@ function cronget_help($section) {
       $output = '<p>'. t('Cronget is a simple utility for retrieving data from a remote URL and storing it in a table. It is usefull for storing HTML,XML,JSON, etc.') .'</p>';
     break;
     case 'admin/content/cronget':
-      $output = '<p>'. t("Cronget is a helper utility that allows remote data to be retrieved and stored via the Drupal cron process. It's primary use would be to fetch remote data and store it as node (or block) content.") .'</p>';
+      $output = '<p>'. t("Cronget is a helper utility that allows remote data to be retrieved and stored via the Drupal cron process. It's primary use would be to fetch remote data and store it as node content.") .'</p>';
     break;
     case 'admin/content/cronget/add/job':
       $output = '<p>'. t("Add a remote http URL to retrieve. Cronget will store the results as a text string.") .'</p>';
@@ -30,7 +30,7 @@ function cronget_help($section) {
 /** 
  * Implementation of hook_perm()
 **/
-function territory_bookmark_perm() {
+function cronget_perm() {
   return array(
     'administer cronget',
     'create cronget jobs',
@@ -67,38 +67,34 @@ function cronget_menu() {
     'file' => 'cronget.admin.inc',
     'type' => MENU_LOCAL_TASK,
   );
-  return $items;
-}
-
-/**
- * Implementation of hook_hook_info()
-
-function cronget_hook_info() {
-  $triggers = array(
-    'cronget' => array(
-      'cronget' => array(
-        'cronget_preprocess' => array(
-          'runs when' => t('Before cronget data is saved.')
-        ),
-        'cronget_executed' => array(
-          'runs when' => t('Cronget is executed.')
-        )
-      )
-    )
+  $items['admin/content/cronget/edit/%cronget_job'] = array(
+    'title' => t("Edit job"),
+    'description' => t("Edit a cronget job."),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('cronget_form_job',4),
+    'access arguments' => array('edit cronget jobs'),
+    'file' => 'cronget.admin.inc',
+    'type' => MENU_CALLBACK,
   );
-  return $triggers;
-}
-**/
-
-/**
- * Implementation of hook_perm()
- **/
-function cronget_perm() {
-  return array(
-    'administer cronget',
-    'create cronget jobs',
-    'edit own cronget jobs',
-    'access cronget');
+  $items['admin/content/cronget/delete/%cronget_job'] = array(
+    'title' => t("Delete job"),
+    'description' => t("Delete a cronget job."),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('cronget_form_delete',4),
+    'access arguments' => array('delete cronget jobs'),
+    'file' => 'cronget.admin.inc',
+    'type' => MENU_CALLBACK,
+  );
+  $items['admin/content/cronget/refresh/%cronget_job'] = array(
+    'title' => t("Refresh job"),
+    'description' => t("Refresh a cronget job."),
+    'page callback' => 'cronget_refresh',
+    'page arguments' => array(4),
+    'access arguments' => array('refresh cronget jobs'),
+    'file' => 'cronget.admin.inc',
+    'type' => MENU_CALLBACK,
+  );
+  return $items;
 }
 
 /**
@@ -107,15 +103,136 @@ function cronget_perm() {
 function cronget_access($op, $node) {
   global $user;
   //TODO: Setup
+  return TRUE;
 }
 
-return array(
-  'cronget' => array(
-    'name' => t('Cronget'),
-    'module' => 'cronget',
-    'description' => t('Nodes created by the cronget module'),
-    'has_title' => TRUE,
-    'title_label' => t('Title'), //Uses cronget job title
-    'has_body' => FALSE //We store body in {cronget_data}
-  )
-);
+/**
+ * Include Node Functionality
+**/
+require_once('cronget.node.inc');
+
+/**
+ * Implementation of hook_cron().
+ *
+ * Retrieves cronget jobs based on interval.
+ *
+ * @param $job -
+ * An array representing the job to refresh
+ */
+function cronget_refresh($job) {
+    //TODO: Add some kind of trigger/action hook
+    $result = drupal_http_request($job['url']);
+    $data = array();
+    $data['jid'] = $job['jid'];
+    $data['content'] = trim($result->data);
+    $data['timestamp'] = time();
+    $data['type'] = $job['type'];
+    $data['uid'] = $job['uid'];
+    $data['title'] = $job['title'];
+    $saveas = explode(',',$job['saveas']);
+    // Process HTTP response code.
+    switch ($result->code) {
+      case 200:
+      case 302:
+      case 307:
+        cronget_nodehandler($job, $data);
+      break;
+      //Log as error if correct HTTP code not received
+      default:
+        watchdog('cronget','Received a http code of '.$result->code.' for cronget job '.$data['jid']);
+      break;
+    }
+    // Process Cronjob Callback
+    // We use eval here (rather than drupal_eval) because the user needs access to local variables.
+    if($job['callback'] != '') {
+      eval('?>'.$job['callback']);
+    }
+    drupal_set_message("Job ". $job['title'] . ' successfully refreshed.');
+    drupal_goto('admin/content/cronget');
+}
+
+/** DATABASE FUNCTIONS **/
+
+/**
+ * Function to get an array of cronget jobs
+ * @param $user
+ * User object to get jobs by
+**/
+function cronget_get_jobs($user = FALSE) {
+    if(!$user || $user->uid = 1) {
+      $query = db_query('SELECT * FROM {cronget_jobs} j ORDER BY Title ASC');
+    }
+    if($user->uid > 1) {
+      $query = db_query('SELECT * from {cronget_jobs} WHERE uid = %d',$user->uid);
+    }
+    $rows = array();
+    while ($row = db_fetch_object($query)) {
+      $rows[] = $row;
+    }
+    return $rows;
+}
+
+
+/**
+ * Load the data for a single contact category.
+ */
+function cronget_job_load($jid) {
+  $job = db_fetch_array(db_query("SELECT * FROM {cronget_jobs} WHERE jid = %d", $jid));
+  return empty($job) ? FALSE : $job;
+}
+
+/**
+ * Function for adding/saving a cronget job
+ *
+ * @param array $form_state
+ * An array representing the cron_get job to save
+ **/
+function cronget_save_job($form_state) {
+  //Perform SQL Operations
+  if ($form_state['values']['jid']) {
+   db_query("UPDATE {cronget_jobs} SET title = '%s', url = '%s', uid = '%d', type = '%s', description = '%s', refresh = %d, callback = '%s' WHERE jid = %d",$form_state['values']['title'],$form_state['values']['url'],$form_state['values']['uid'],$form_state['values']['type'],$form_state['values']['description'],$form_state['values']['refresh'],$form_state['values']['callback'],$form_state['values']['jid']);
+   watchdog('cronget', t('job %jid updated.', array('%jid' => $form_state['values']['jid'])));
+  }
+  else {
+    db_query("INSERT INTO {cronget_jobs} (title,url,uid,type,description,refresh,callback) VALUES('%s','%s',%d,'%s','%s',%d,'%s')",$form_state['values']['title'],$form_state['values']['url'],$form_state['values']['uid'],$form_state['values']['type'],$form_state['values']['description'],$form_state['values']['refresh'],$form_state['values']['callback']);
+    watchdog('cronget', t('job %jid inserted.', array('%jid' => $form_state['values']['jid'])));
+  }
+}
+
+
+/**
+ * Function for saving a cronget data row
+ * @param $data
+ * An array representing the cron_get job to save.
+ *
+ *
+ **/
+function cronget_save_data($data) {
+  $type = $data['type'];
+  //Set a default timestamp if needed
+  if (!isset($data['timestamp'])) {
+    $data['timestamp'] = time();
+  }
+  //See if there is a row in database, ifso update
+  $result = db_result(db_query("SELECT count(did) FROM {cronget_data} WHERE jid = %d",$data['jid']));
+  if ($result > 0 && $type != 'streaming') {
+    db_query("UPDATE {cronget_data} SET content = '%s',timestamp = %d WHERE jid = %d",$data['content'],$data['timestamp'],$data['jid']);
+    //watchdog('cronget', t('data of job: %jid type: %type updated',array('%jid' => $data['jid'], '%type' => $data['type'])));
+  }
+  else {
+    db_query("INSERT INTO {cronget_data} (jid,content,timestamp) VALUES(%d,'%s',%d)",$data['jid'],$data['content'],$data['timestamp']);
+    //watchdog('cronget', t('data of job: %jid type: %type inserted',array('%jid' => $data['jid'], '%type' => $data['type'])));
+  }
+}
+
+/**
+ * @file
+ * Provide views data and handlers for cronget.module
+ */
+ 
+function cronget_views_api() {
+  return array(
+    'api' => 2,
+    'path' => drupal_get_path('module', 'cronget') . '/',
+  );
+}
