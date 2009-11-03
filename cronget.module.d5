@@ -446,8 +446,6 @@ function cronget_delete_job($delete) {
   watchdog('cronget', t('job %jid deleted.',array('%jid' => $delete['jid'])));
 }
 
-
-
 /**
  * Function for saving a cronget data row
  * @param $data
