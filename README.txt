@@ -31,6 +31,13 @@ following variables will be helpful:
 $data['jid] : The Job ID that was executed.
 $data['content'] : The remote content that was fetched.
 
+The callback functionality is fairly rudimentary but gets the job done. Below is an example of how to scrape a <title> value from a remote URL.
+
+$start = strpos($data['content'], '<title>');
+$end = strpos($data['content'], '</title>');
+$data['content'] = substr($data['content'],$start,$end-$start);
+cronget_save_data($data);
+
 
 Code Contributions
 ------------------

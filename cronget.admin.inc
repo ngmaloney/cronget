@@ -8,7 +8,6 @@
  * Function for displaying the cronget administration page
 **/
 function cronget_admin_overview() {
-<<<<<<< HEAD
   $output = cronget_admin_list();
   return $output;
 }
@@ -38,25 +37,6 @@ function cronget_admin_list() {
       l(t('Refresh'), "admin/content/cronget/refresh/$job->jid")
     );
   }
-=======
-  $output = t("This is the cronget admin overview page.");
-  $jobs = cronget_get_all_jobs();
-  $rows = array();
-  foreach($jobs as $job) {
-    $rows[] = array(
-      $job['title'], 
-      $job['url'], 
-      $job['type'], 
-      l(t('Edit'), "admin/content/cronget/edit/".$job['jid']),
-    );
-  }
-  $header = array(
-    t('Title'), 
-    t('URL'), 
-    t('Job Type'),
-    t('Operations'),
-  );
->>>>>>> 164b20fc23e0ce235e6d3ddcec449902fc5779a5
   $output .= theme('table', $header, $rows);
   return $output;
 }
@@ -64,11 +44,7 @@ function cronget_admin_list() {
 /**
  * Function for creating the cronget job administration form
 **/
-<<<<<<< HEAD
 function cronget_form_job(&$form_state, $edit = array()) {
-  global $user;
-=======
-function cronget_job_admin(&$form_state, $op, $edit = NULL) {
   global $user;
   if (empty($edit) || $op == 'add') {
     $edit = array(
@@ -82,11 +58,7 @@ function cronget_job_admin(&$form_state, $op, $edit = NULL) {
       'jid' => NULL,
     );
   }
-  else {
-    $edit = cronget_load($edit);
-  }
   //var_dump($edit);
->>>>>>> 164b20fc23e0ce235e6d3ddcec449902fc5779a5
   $period = drupal_map_assoc(array(3600, 10800, 21600, 32400, 43200, 86400, 172800, 259200, 604800, 1209600, 2419200, 4838400, 9676800), 'format_interval');
   $form_types = array('static' => t('Static'), 'streaming' => t('Streaming'));
   $form['title'] = array('#type' => 'textfield',
@@ -144,12 +116,13 @@ function cronget_job_admin(&$form_state, $op, $edit = NULL) {
 /**
  * Implementation of hook_validate()
 **/
-<<<<<<< HEAD
+
 function cronget_form_job_validate($form, &$form_state) {
   if(!valid_url($form_state['values']['url'],TRUE)) {
     form_set_error('url', 'URL appears invalid.');
   }
-=======
+}
+
 function cronget_job_admin_validate($form, &$form_state) {
   //Validate Title
   if ($form_state['values']['title'] == '') {
@@ -171,13 +144,11 @@ function cronget_job_admin_validate($form, &$form_state) {
   if (!valid_url($form_state['values']['url'],TRUE)) {
     form_set_error('url', t('A valid url is required.'));
   } 
->>>>>>> 164b20fc23e0ce235e6d3ddcec449902fc5779a5
 }
 
 /**
  * Implementation of hook_submit()
 **/
-<<<<<<< HEAD
 function cronget_form_job_submit($form, &$form_state) {
   cronget_save_job($form_state);  
   drupal_set_message(t('Your job has been saved.'));
@@ -205,7 +176,8 @@ function cronget_form_delete_submit($form, &$form_state) {
   drupal_set_message(t("Cronget Job deleted"));
   watchdog('cronget', 'Cronget job '. $jid . ' deleted.');
   $form_state['redirect'] = 'admin/content/cronget';
-=======
+}
+
 function cronget_job_admin_submit($form, &$form_state) {
   $job = array(
     'title' => $form_state['values']['title'],
@@ -231,10 +203,5 @@ function cronget_job_admin_submit($form, &$form_state) {
     drupal_set_message(t('Job Saved.'));
   }
   $form_state['redirect'] = 'admin/content/cronget/list';
-  /* DEBUG
-  var_dump($form_state['values']);
-  exit();
-  */
   return;
->>>>>>> 164b20fc23e0ce235e6d3ddcec449902fc5779a5
 }

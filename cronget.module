@@ -27,7 +27,6 @@ function cronget_help($section) {
   return $output;
 }
 
-<<<<<<< HEAD
 /** 
  * Implementation of hook_perm()
 **/
@@ -40,8 +39,7 @@ function cronget_perm() {
   );
 }
 
-=======
->>>>>>> 164b20fc23e0ce235e6d3ddcec449902fc5779a5
+
 /**
  * Implementation of hook_menu().
  */
@@ -70,7 +68,6 @@ function cronget_menu() {
     'file' => 'cronget.admin.inc',
     'type' => MENU_LOCAL_TASK,
   );
-<<<<<<< HEAD
   $items['admin/content/cronget/edit/%cronget_job'] = array(
     'title' => t("Edit job"),
     'description' => t("Edit a cronget job."),
@@ -114,23 +111,21 @@ function cronget_access($op, $node) {
  * Include Node Functionality
 **/
 require_once('cronget.node.inc');
-=======
-  
-  $items['admin/content/cronget/edit/%'] = array(
-    'title' => 'Edit contact category',
-    'page callback' => 'drupal_get_form',
-    'page arguments' => array('cronget_job_admin', 3, 4),
-    'access arguments' => array('edit own cronget jobs'),
-    'file' => 'cronget.admin.inc',
-    'type' => MENU_CALLBACK,
-  );
-  
-  return $items;
-}
->>>>>>> 164b20fc23e0ce235e6d3ddcec449902fc5779a5
 
 /**
  * Implementation of hook_cron().
+ *
+ * Retrieves cronget jobs based on interval.
+ */
+function cronget_cron() {
+  $result = db_query('SELECT * FROM {cronget_jobs} WHERE checked + refresh < %d', time());
+  while ($job = db_fetch_array($result)) {
+    cronget_refresh($job);
+  }
+}
+
+/**
+ * Refreshes a cronget job
  *
  * Retrieves cronget jobs based on interval.
  *
@@ -166,6 +161,7 @@ function cronget_refresh($job) {
       eval('?>'.$job['callback']);
     }
     drupal_set_message("Job ". $job['title'] . ' successfully refreshed.');
+    watchdog('cronget', 'Cronget job: '. $job['jid'] . 'successfully run.');
     drupal_goto('admin/content/cronget');
 }
 
@@ -204,7 +200,6 @@ function cronget_job_load($jid) {
  *
  * @param array $form_state
  * An array representing the cron_get job to save
- **/
 function cronget_save_job($form_state) {
   //Perform SQL Operations
   if ($form_state['values']['jid']) {
@@ -216,8 +211,7 @@ function cronget_save_job($form_state) {
     watchdog('cronget', t('job %jid inserted.', array('%jid' => $form_state['values']['jid'])));
   }
 }
-
-<<<<<<< HEAD
+**/
 
 /**
  * Function for saving a cronget data row
@@ -241,7 +235,9 @@ function cronget_save_data($data) {
   else {
     db_query("INSERT INTO {cronget_data} (jid,content,timestamp) VALUES(%d,'%s',%d)",$data['jid'],$data['content'],$data['timestamp']);
     //watchdog('cronget', t('data of job: %jid type: %type inserted',array('%jid' => $data['jid'], '%type' => $data['type'])));
-=======
+  }
+}
+
 /** Database Functions **/
 /**
  * Function for adding/saving a cronget job
@@ -249,21 +245,19 @@ function cronget_save_data($data) {
  * @param $job
  * An array representing the cron_get job to save
  **/
-function cronget_save_job($job) {
+function cronget_save_job($form_state) {
   //Perform SQL Operations
-  if ($job['jid']) {
-   db_query("UPDATE {cronget_jobs} SET title = '%s', url = '%s', uid = '%d', type = '%s', description = '%s', refresh = %d, callback = '%s', saveas = '%s' WHERE jid = %d",$job['title'],$job['url'],$job['uid'],$job['type'],$job['description'],$job['refresh'],$job['callback'],implode(',',array_values($job['saveas'])),$job['jid']);
-   watchdog('cronget', t('job %jid updated.', array('%jid' => $job['jid'])));
+  if ($form_state['values']['jid']) {
+    db_query("UPDATE {cronget_jobs} SET title = '%s', url = '%s', uid = '%d', type = '%s', description = '%s', refresh = %d, callback = '%s' WHERE jid = %d",$form_state['values']['title'],$form_state['values']['url'],$form_state['values']['uid'],$form_state['values']['type'],$form_state['values']['description'],$form_state['values']['refresh'],$form_state['values']['callback'],$form_state['values']['jid']);
+    watchdog('cronget', t('job %jid updated.', array('%jid' => $form_state['values']['jid'])));
   }
   else {
-    db_query("INSERT INTO {cronget_jobs} (title,url,uid,type,description,refresh,callback,saveas) VALUES('%s','%s',%d,'%s','%s',%d,'%s','%s')",$job['title'],$job['url'],$job['uid'],$job['type'],$job['description'],$job['refresh'],$job['callback'],implode(',',array_values($job['saveas'])));
-    watchdog('cronget', t('job %jid inserted.', array('%jid' => $job['jid'])));
->>>>>>> 164b20fc23e0ce235e6d3ddcec449902fc5779a5
+    db_query("INSERT INTO {cronget_jobs} (title,url,uid,type,description,refresh,callback) VALUES('%s','%s',%d,'%s','%s',%d,'%s')",$form_state['values']['title'],$form_state['values']['url'],$form_state['values']['uid'],$form_state['values']['type'],$form_state['values']['description'],$form_state['values']['refresh'],$form_state['values']['callback']);
+    watchdog('cronget', t('job %jid inserted.', array('%jid' => $form_state['values']['jid'])));
   }
 }
 
 /**
-<<<<<<< HEAD
  * @file
  * Provide views data and handlers for cronget.module
  */
@@ -273,26 +267,22 @@ function cronget_views_api() {
     'api' => 2,
     'path' => drupal_get_path('module', 'cronget') . '/',
   );
-=======
+}
+
+/*
  * Function for deleting a cronget job
  *
  * @param  $delete
  * An array representing the cron_get job to delete
  **/
 function cronget_delete_job($delete) {
+  //Delete cron get node
+  db_query("DELETE FROM {cronget} WHERE jid = %d",$delete['jid']);
   //Delete all data
   db_query("DELETE FROM {cronget_data} WHERE jid = %d",$delete['jid']);
   //Delete job
   db_query("DELETE FROM {cronget_jobs} WHERE jid = %d",$delete['jid']);
   watchdog('cronget', t('job %jid deleted.',array('%jid' => $delete['jid'])));
-}
-
-/**
- * Load the data for a single cronget job
- */
-function cronget_load($jid) {
-  $job = db_fetch_array(db_query("SELECT * FROM {cronget_jobs} WHERE jid = %d", $jid));
-  return empty($job) ? FALSE : $job;
 }
 
 /**
@@ -306,5 +296,4 @@ function cronget_get_all_jobs() {
     $jobs[] = $job;
   }
   return $jobs;
->>>>>>> 164b20fc23e0ce235e6d3ddcec449902fc5779a5
 }
