@@ -99,7 +99,7 @@ function cronget_load($node) {
 function cronget_nodehandler($job, $data) {
   $node = false;
   //Search for preexisting nodes
-  if($job['type'] == 'static') {
+  if ($job['type'] == 'static') {
     $node = cronget_get_node_by_jid($data['jid']);    
   }
   //If no nodes are found create a new node obj.
@@ -114,9 +114,9 @@ function cronget_nodehandler($job, $data) {
     $node->title = $data['title'];
   }
   node_save($node);
-  watchdog('cronget',t('Node saved: %node',array('%node' => serialize($node))));
+  watchdog('cronget', t('Node saved: %node', array('%node' => serialize($node))));
   //Update Last Update
-  db_query("UPDATE {cronget_jobs} SET checked = %d WHERE jid = %d",time(),$data['jid']);
+  db_query("UPDATE {cronget_jobs} SET checked = %d WHERE jid = %d", time(), $data['jid']);
   //Add watchdog element
 }
 
@@ -127,7 +127,7 @@ function cronget_nodehandler($job, $data) {
  * An int containing the cronget $jid (job id)
 **/
 function cronget_get_node_by_jid($jid) {
-  $result = db_fetch_array(db_query("SELECT nid FROM {cronget} WHERE jid = %d",$jid));
+  $result = db_fetch_array(db_query("SELECT nid FROM {cronget} WHERE jid = %d", $jid));
   if (isset($result['nid'])) {
     return node_load($result['nid']);
   }

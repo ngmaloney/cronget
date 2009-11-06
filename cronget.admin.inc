@@ -27,7 +27,7 @@ function cronget_admin_list() {
     t('Type'), 
     array('data' => t('Operations'), 'colspan' => '3')
   );
-  foreach($jobs as $job) {
+  foreach ($jobs as $job) {
     $rows[] = array(
       t($job->title), 
       t($job->url), 
@@ -58,7 +58,6 @@ function cronget_form_job(&$form_state, $edit = array()) {
       'jid' => NULL,
     );
   }
-  //var_dump($edit);
   $period = drupal_map_assoc(array(3600, 10800, 21600, 32400, 43200, 86400, 172800, 259200, 604800, 1209600, 2419200, 4838400, 9676800), 'format_interval');
   $form_types = array('static' => t('Static'), 'streaming' => t('Streaming'));
   $form['title'] = array('#type' => 'textfield',
@@ -103,7 +102,7 @@ function cronget_form_job(&$form_state, $edit = array()) {
   $form['callback']['callback'] = array('#type' => 'textarea',
     '#title' => t('Callback'),
     '#default_value' => $edit['callback'],
-    '#description' => t("PHP code to execute after job has been run. Include the <?php ?> tags. The cronget data is stored in an associative array. The array contains the following fields: \$data['jid'] - Job ID, \$data['content'] - Remote data payload."),
+    '#description' => t("PHP code to execute after job has been run. The cronget data is stored in an associative array. The array contains the following fields: \$data['jid'] - Job ID, \$data['content'] - Remote data payload. Call back needs to return a string."),
   );
   $form['submit'] = array('#type' => 'submit', '#value' => t('Submit'));
   $form['uid'] = array('#type' => 'hidden', '#value' => $user->uid);
@@ -118,7 +117,7 @@ function cronget_form_job(&$form_state, $edit = array()) {
 **/
 
 function cronget_form_job_validate($form, &$form_state) {
-  if(!valid_url($form_state['values']['url'],TRUE)) {
+  if (!valid_url($form_state['values']['url'], TRUE)) {
     form_set_error('url', 'URL appears invalid.');
   }
 }
@@ -130,7 +129,7 @@ function cronget_job_admin_validate($form, &$form_state) {
   }
   // Check for duplicate titles
   if (!isset($form_state['values']['jid'])) {
-    $results = db_query("SELECT title FROM {cronget_jobs} WHERE title = '%s'",$form_state['values']['title']);
+    $results = db_query("SELECT title FROM {cronget_jobs} WHERE title = '%s'", $form_state['values']['title']);
     while ($job = db_fetch_object($results)) {
       if (strcasecmp($job->title, $form_state['values']['title']) == 0) {
         form_set_error('title', t('A job named %title already exists. Please enter a unique title.', array('%title' => $form_state['values']['title'])));
@@ -141,7 +140,7 @@ function cronget_job_admin_validate($form, &$form_state) {
   if ($form_state['values']['url'] == '') {
     form_set_error('url', t('A url is required.'));
   }
-  if (!valid_url($form_state['values']['url'],TRUE)) {
+  if (!valid_url($form_state['values']['url'], TRUE)) {
     form_set_error('url', t('A valid url is required.'));
   } 
 }
