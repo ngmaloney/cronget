@@ -63,7 +63,7 @@ function cronget_menu() {
     'title' => t("Add job"),
     'description' => t("Create a cronget job."),
     'page callback' => 'drupal_get_form',
-    'page arguments' => array('cronget_job_admin', 3),
+    'page arguments' => array('cronget_form_job'),
     'access arguments' => array('create cronget jobs'),
     'file' => 'cronget.admin.inc',
     'type' => MENU_LOCAL_TASK,
@@ -203,24 +203,6 @@ function cronget_job_load($jid) {
   $job = db_fetch_array(db_query("SELECT * FROM {cronget_jobs} WHERE jid = %d", $jid));
   return empty($job) ? FALSE : $job;
 }
-
-/**
- * Function for adding/saving a cronget job
- *
- * @param array $form_state
- * An array representing the cron_get job to save
-function cronget_save_job($form_state) {
-  //Perform SQL Operations
-  if ($form_state['values']['jid']) {
-   db_query("UPDATE {cronget_jobs} SET title = '%s', url = '%s', uid = '%d', type = '%s', description = '%s', refresh = %d, callback = '%s' WHERE jid = %d",$form_state['values']['title'],$form_state['values']['url'],$form_state['values']['uid'],$form_state['values']['type'],$form_state['values']['description'],$form_state['values']['refresh'],$form_state['values']['callback'],$form_state['values']['jid']);
-   watchdog('cronget', t('job %jid updated.', array('%jid' => $form_state['values']['jid'])));
-  }
-  else {
-    db_query("INSERT INTO {cronget_jobs} (title,url,uid,type,description,refresh,callback) VALUES('%s','%s',%d,'%s','%s',%d,'%s')",$form_state['values']['title'],$form_state['values']['url'],$form_state['values']['uid'],$form_state['values']['type'],$form_state['values']['description'],$form_state['values']['refresh'],$form_state['values']['callback']);
-    watchdog('cronget', t('job %jid inserted.', array('%jid' => $form_state['values']['jid'])));
-  }
-}
-**/
 
 /**
  * Function for saving a cronget data row

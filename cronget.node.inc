@@ -25,6 +25,11 @@ function cronget_node_info() {
 **/
 function cronget_view($node, $teaser = FALSE, $page = FALSE) {
   $node = node_prepare($node, $teaser);
+  $node->content['cronget_content'] = array(
+    '#value' => $node->cronget_content,
+    '#weight' => 1,
+  );
+  
   return $node;
 }
 
