@@ -55,6 +55,7 @@ function cronget_schema() {
         'content' => array(
           'description' => t('The payload of a cronget job.'),
           'type' => 'text',
+          'size' => 'big',
           'not null' => TRUE,
           'default' => '',
         ),
@@ -142,6 +143,15 @@ function cronget_install() {
   // Create tables.
   drupal_install_schema('cronget');
 }
+
+/** 
+ * Update1 - Changes cronget data field to TEXT -> BIG
+ * TODO: Do this so it won't blow out data!
+function update_1() {
+   cronget_uninstall();
+   cronget_install();
+}
+**/
 
 /**
  * Implementation of hook_uninstall().
