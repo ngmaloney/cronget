@@ -58,7 +58,7 @@ function cronget_form_job(&$form_state, $edit = array()) {
       'jid' => NULL,
     );
   }
-  $period = drupal_map_assoc(array(300, 900, 1800, 3600, 10800, 21600, 32400, 43200, 86400, 172800, 259200, 604800, 1209600, 2419200, 4838400, 9676800), 'format_interval');
+  $period = drupal_map_assoc(array(60, 120, 360, 300, 900, 1800, 3600, 10800, 21600, 32400, 43200, 86400, 172800, 259200, 604800, 1209600, 2419200, 4838400, 9676800), 'format_interval');
   $form_types = array('static' => t('Static'), 'streaming' => t('Streaming'));
   $form['title'] = array('#type' => 'textfield',
     '#title' => t('Title'),

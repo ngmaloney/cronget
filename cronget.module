@@ -27,19 +27,6 @@ function cronget_help($section) {
   return $output;
 }
 
-/** 
- * Implementation of hook_perm()
-**/
-function cronget_perm() {
-  return array(
-    'administer cronget',
-    'create cronget jobs',
-    'edit own cronget jobs',
-    'access cronget'
-  );
-}
-
-
 /**
  * Implementation of hook_menu().
  */
@@ -98,13 +85,31 @@ function cronget_menu() {
   return $items;
 }
 
+/** 
+ * Implementation of hook_perm()
+**/
+function cronget_perm() {
+  return array(
+    'administer cronget',
+    'create cronget jobs',
+    'edit own cronget jobs',
+    'access cronget'
+  );
+}
+
 /**
  * Implementation of hook_access
  */
-function cronget_access($op, $node) {
-  global $user;
-  //TODO: Setup
-  return TRUE;
+function cronget_access($op, $node, $account) {
+  switch ($op) {
+    case 'create':
+      // Anonymous users cannot post even if they have the permission. 
+      return user_access('create cronget jobs', $account) && $account->uid ? TRUE : NULL;
+    case 'update':
+      return user_access('edit own cronget jobs', $account) && ($node->uid == $account->uid) ? TRUE : NULL;
+    case 'delete':
+      return user_access('edit own cronget jobs', $account) && ($node->uid == $account->uid) ? TRUE : NULL;
+  }
 }
 
 /**
