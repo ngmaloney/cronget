@@ -31,7 +31,7 @@ function cronget_help($section) {
  * Implementation of hook_menu().
  */
 function cronget_menu() {
-  $items = array();  
+  $items = array();
   // Menu entry for adding cronget jobs
   $items['admin/content/cronget'] = array(
     'title' => t('Cronget Jobs'),
@@ -59,7 +59,7 @@ function cronget_menu() {
     'title' => t("Edit job"),
     'description' => t("Edit a cronget job."),
     'page callback' => 'drupal_get_form',
-    'page arguments' => array('cronget_form_job', 4), 
+    'page arguments' => array('cronget_form_job', 4),
     'access arguments' => array('edit cronget jobs'),
     'file' => 'cronget.admin.inc',
     'type' => MENU_CALLBACK,
@@ -85,7 +85,7 @@ function cronget_menu() {
   return $items;
 }
 
-/** 
+/**
  * Implementation of hook_perm()
 **/
 function cronget_perm() {
@@ -103,7 +103,7 @@ function cronget_perm() {
 function cronget_access($op, $node, $account) {
   switch ($op) {
     case 'create':
-      // Anonymous users cannot post even if they have the permission. 
+      // Anonymous users cannot post even if they have the permission.
       return user_access('create cronget jobs', $account) && $account->uid ? TRUE : NULL;
     case 'update':
       return user_access('edit own cronget jobs', $account) && ($node->uid == $account->uid) ? TRUE : NULL;
@@ -125,7 +125,7 @@ require_once('cronget.node.inc');
 function cronget_cron() {
   $result = db_query('SELECT * FROM {cronget_jobs} WHERE checked + refresh < %d', time());
   while ($job = db_fetch_array($result)) {
-    cronget_refresh($job);
+    cronget_refresh($job,TRUE);
   }
 }
 
@@ -136,8 +136,10 @@ function cronget_cron() {
  *
  * @param $job -
  * An array representing the job to refresh
+ * @param $cron
+ * Boolean flagging whether job was triggered via cron
  */
-function cronget_refresh($job) {
+function cronget_refresh($job, $cron = false) {
     //TODO: Add some kind of trigger/action hook
     $result = drupal_http_request($job['url']);
     $data = array();
@@ -175,8 +177,13 @@ function cronget_refresh($job) {
       }
     }
     watchdog('cronget', 'Cronget job: '. $job['jid'] . 'successfully run.');
-    drupal_set_message("Job ". $job['title'] . ' successfully refreshed.');
-    drupal_goto('admin/content/cronget');
+    if($cron) {
+      return TRUE;
+    }
+    else {
+      drupal_set_message("Job ". $job['title'] . ' successfully refreshed.');
+      drupal_goto('admin/content/cronget');
+    }
 }
 
 /** DATABASE FUNCTIONS **/
@@ -257,7 +264,6 @@ function cronget_save_job($form_state) {
  * @file
  * Provide views data and handlers for cronget.module
  */
- 
 function cronget_views_api() {
   return array(
     'api' => 2,
